@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  RUST_TOOLCHAIN: stable
+  MUSL_TARGET: x86_64-unknown-linux-musl
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ env.MUSL_TARGET }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools make gcc
+
+      - name: Strip linuxbrew from PATH
+        run: |
+          CLEAN_PATH=$(printf '%s\n' "$PATH" | tr ':' '\n' | grep -v 'linuxbrew' | paste -sd: -)
+          echo "PATH=$CLEAN_PATH" >> "$GITHUB_ENV"
+
+      - name: Fetch dependencies
+        run: make deps
+
+      - name: Build (release, musl)
+        run: make build
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ env.MUSL_TARGET }}
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools make gcc
+
+      - name: Strip linuxbrew from PATH
+        run: |
+          CLEAN_PATH=$(printf '%s\n' "$PATH" | tr ':' '\n' | grep -v 'linuxbrew' | paste -sd: -)
+          echo "PATH=$CLEAN_PATH" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        run: make test
+
+  release-binary:
+    name: Release binary
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ env.MUSL_TARGET }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools make gcc
+
+      - name: Strip linuxbrew from PATH
+        run: |
+          CLEAN_PATH=$(printf '%s\n' "$PATH" | tr ':' '\n' | grep -v 'linuxbrew' | paste -sd: -)
+          echo "PATH=$CLEAN_PATH" >> "$GITHUB_ENV"
+
+      - name: Build release binary
+        run: make build
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitize-filenames-binary
+          path: target/${{ env.MUSL_TARGET }}/release/sanitize_filenames
+
+  release-rpm:
+    name: Release RPM
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ env.MUSL_TARGET }}
+
+      - name: Install RPM build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools make gcc rpm
+
+      - name: Strip linuxbrew from PATH
+        run: |
+          CLEAN_PATH=$(printf '%s\n' "$PATH" | tr ':' '\n' | grep -v 'linuxbrew' | paste -sd: -)
+          echo "PATH=$CLEAN_PATH" >> "$GITHUB_ENV"
+
+      - name: Build RPM
+        run: make rpm
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitize-filenames-rpm
+          path: target/rpm/**/*.rpm
+
+  release-deb:
+    name: Release DEB
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ env.MUSL_TARGET }}
+
+      - name: Install DEB build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools make gcc dpkg-dev
+
+      - name: Strip linuxbrew from PATH
+        run: |
+          CLEAN_PATH=$(printf '%s\n' "$PATH" | tr ':' '\n' | grep -v 'linuxbrew' | paste -sd: -)
+          echo "PATH=$CLEAN_PATH" >> "$GITHUB_ENV"
+
+      - name: Build DEB
+        run: make deb
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitize-filenames-deb
+          path: target/deb/*.deb
+
