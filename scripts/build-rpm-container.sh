@@ -13,12 +13,18 @@ else
   exit 1
 fi
 
+if [ "${RUNTIME}" = "podman" ]; then
+  VOLUME_OPT="-v ${ROOT_DIR}:/workspace:Z"
+else
+  VOLUME_OPT="-v ${ROOT_DIR}:/workspace"
+fi
+
 IMAGE_NAME="sanitize-filenames-rpm"
 
 "${RUNTIME}" build -f "${ROOT_DIR}/containerfiles/Containerfile.rpm" -t "${IMAGE_NAME}" "${ROOT_DIR}"
 
 "${RUNTIME}" run --rm \
-  -v "${ROOT_DIR}:${ROOT_DIR}" \
-  -w "${ROOT_DIR}" \
+  ${VOLUME_OPT} \
+  -w /workspace \
   "${IMAGE_NAME}" \
   make rpm

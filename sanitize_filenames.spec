@@ -7,9 +7,9 @@ License:        AGPLv3+
 URL:            https://example.com/sanitize_filenames
 Source0:        %{name}-%{version}.tar.gz
 
-BuildRequires:  musl-gcc
 BuildRequires:  make
 BuildRequires:  gcc
+BuildRequires:  musl-gcc
 
 %description
 sanitize_filenames is a small Rust-based command-line tool that renames

@@ -7,11 +7,29 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${ROOT_DIR}"
 
 BINARY_NAME="sanitize_filenames"
-VERSION="$(sed -n 's/^version = \"\\(.*\\)\"/\\1/p' Cargo.toml)"
+VERSION="$(awk -F\" '/^version = / {print $2; exit}' Cargo.toml)"
 
-tar czf "${BINARY_NAME}-${VERSION}.tar.gz" \
-  --transform="s,^,${BINARY_NAME}-${VERSION}/," \
-  --exclude-vcs --exclude target --exclude '*.rpm' --exclude '*.tar.gz' . || [ $? -eq 1 ]
+if [ -z "${VERSION}" ]; then
+  echo "Error: could not determine version from Cargo.toml" >&2
+  exit 1
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "Error: git is required to build the RPM source archive" >&2
+  exit 1
+fi
+
+ARCHIVE="${BINARY_NAME}-${VERSION}.tar.gz"
+
+git -C "${ROOT_DIR}" ls-files -z | \
+  tar --null -T - \
+      --transform="s,^,${BINARY_NAME}-${VERSION}/," \
+      -czf "${ARCHIVE}"
+
+if [ ! -f "${ARCHIVE}" ]; then
+  echo "Error: expected archive ${ARCHIVE} was not created" >&2
+  exit 1
+fi
 
 rpmbuild -ba \
   --define "_sourcedir ${ROOT_DIR}" \
@@ -21,4 +39,3 @@ rpmbuild -ba \
   sanitize_filenames.spec
 
 rm -f "${BINARY_NAME}-${VERSION}.tar.gz"
-
