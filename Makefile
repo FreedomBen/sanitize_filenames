@@ -4,7 +4,8 @@ VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
 DEB_PACKAGE := sanitize-filenames
 DEB_ARCH := amd64
 
-.PHONY: all build clean deps initialize run test rpm deb
+.PHONY: all build clean deps initialize run test rpm deb \
+	release-binary release-rpm release-deb
 
 all: build
 
@@ -56,6 +57,15 @@ deb: build
 
 test:
 	cargo test
+
+release-binary:
+	./scripts/build-static-binary-container.sh
+
+release-rpm:
+	./scripts/build-rpm-container.sh
+
+release-deb:
+	./scripts/build-deb-container.sh
 
 clean:
 	cargo clean
