@@ -4,8 +4,8 @@ VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
 DEB_PACKAGE := sanitize-filenames
 DEB_ARCH := amd64
 
-.PHONY: all build clean deps initialize run test rpm deb arch-pkg \
-	release-binary release-rpm release-deb release-arch
+.PHONY: all build clean deps initialize run test rpm deb arch-pkg alpine-apk \
+	release-binary release-rpm release-deb release-arch release-alpine
 
 all: build
 
@@ -32,6 +32,9 @@ deb: build
 arch-pkg:
 	./scripts/build-arch-pkg.sh
 
+alpine-apk:
+	./scripts/build-alpine-apk.sh
+
 test:
 	cargo test
 
@@ -46,6 +49,9 @@ release-deb:
 
 release-arch:
 	./scripts/build-arch-pkg-container.sh
+
+release-alpine:
+	./scripts/build-alpine-apk-container.sh
 
 clean:
 	cargo clean

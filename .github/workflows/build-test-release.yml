@@ -189,3 +189,21 @@ jobs:
         with:
           name: sanitize-filenames-arch
           path: target/archpkg/*.pkg.tar.zst
+
+  release-alpine:
+    name: Release Alpine package
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Alpine package (containerized)
+        run: make release-alpine
+
+      - name: Upload Alpine artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitize-filenames-alpine
+          path: target/alpinepkg/*.apk
