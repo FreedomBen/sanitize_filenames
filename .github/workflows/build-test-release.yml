@@ -98,10 +98,13 @@ jobs:
       - name: Build release binary (containerized)
         run: make release-binary
 
+      - name: Extract version
+        run: echo "PKG_VERSION=$(awk -F '\"' '/^version = / {print $2; exit}' Cargo.toml)" >> "$GITHUB_ENV"
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sanitize-filenames-binary
+          name: sanitize_filenames-${{ env.PKG_VERSION }}-${{ env.MUSL_TARGET }}
           path: target/${{ env.MUSL_TARGET }}/release/sanitize_filenames
 
   release-rpm:
@@ -166,11 +169,14 @@ jobs:
       - name: Build DEB (containerized)
         run: make release-deb
 
+      - name: Extract version
+        run: echo "PKG_VERSION=$(awk -F '\"' '/^version = / {print $2; exit}' Cargo.toml)" >> "$GITHUB_ENV"
+
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sanitize-filenames-deb
-          path: target/deb/*.deb
+          name: sanitize-filenames_${{ env.PKG_VERSION }}_amd64.deb
+          path: target/deb/sanitize-filenames_${{ env.PKG_VERSION }}_amd64.deb
 
   release-arch:
     name: Release Arch package
@@ -184,11 +190,14 @@ jobs:
       - name: Build Arch package (containerized)
         run: make release-arch
 
+      - name: Extract version
+        run: echo "PKG_VERSION=$(awk -F '\"' '/^version = / {print $2; exit}' Cargo.toml)" >> "$GITHUB_ENV"
+
       - name: Upload Arch artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sanitize-filenames-arch
-          path: target/archpkg/*.pkg.tar.zst
+          name: sanitize-filenames-${{ env.PKG_VERSION }}-1-x86_64.pkg.tar.zst
+          path: target/archpkg/sanitize-filenames-${{ env.PKG_VERSION }}-1-x86_64.pkg.tar.zst
 
   release-alpine:
     name: Release Alpine package
@@ -202,8 +211,11 @@ jobs:
       - name: Build Alpine package (containerized)
         run: make release-alpine
 
+      - name: Extract version
+        run: echo "PKG_VERSION=$(awk -F '\"' '/^version = / {print $2; exit}' Cargo.toml)" >> "$GITHUB_ENV"
+
       - name: Upload Alpine artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sanitize-filenames-alpine
-          path: target/alpinepkg/*.apk
+          name: sanitize-filenames-${{ env.PKG_VERSION }}-r0-x86_64.apk
+          path: target/alpinepkg/sanitize-filenames-${{ env.PKG_VERSION }}-r0-x86_64.apk
