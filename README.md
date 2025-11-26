@@ -57,7 +57,7 @@ rustup target add x86_64-unknown-linux-musl
 - `src/main.rs` – Binary entrypoint for the CLI.
 - `src/lib.rs` – Core library with sanitization logic and tests.
 - `.cargo/config.toml` – Configures the default build target to `x86_64-unknown-linux-musl` and uses `musl-gcc` as the linker.
-- `Makefile` – Convenience targets for building, fetching dependencies, and cleaning.
+- `Makefile` – Convenience targets for building, fetching dependencies, testing, and packaging (`rpm`, `deb`).
 
 ## Building the binary
 
@@ -115,3 +115,25 @@ For usage information:
 ```sh
 ./target/x86_64-unknown-linux-musl/release/sanitize_filenames --help
 ```
+
+## Building packages
+
+### RPM (Fedora and derivatives)
+
+On Fedora (with `rpmbuild` installed):
+
+```sh
+make rpm
+```
+
+This creates RPMs under `target/rpm/`.
+
+### DEB (Debian/Ubuntu and derivatives)
+
+On a system with `dpkg-deb` available:
+
+```sh
+make deb
+```
+
+This produces a `.deb` package under `target/deb/` (package name `sanitize-filenames`, containing the `sanitize_filenames` binary in `/usr/bin`).
