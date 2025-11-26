@@ -26,5 +26,7 @@ package() {
 
   install -Dm644 "README.md" \
     "$pkgdir/usr/share/doc/$pkgname/README.md"
-}
 
+  install -Dm644 "man/sanitize_filenames.1" \
+    "$pkgdir/usr/share/man/man1/sanitize_filenames.1"
+}

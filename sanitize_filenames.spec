@@ -32,6 +32,8 @@ install -D -m 0644 completions/_sanitize_filenames \
     %{buildroot}%{_datadir}/zsh/site-functions/_%{name}
 install -D -m 0644 completions/sanitize_filenames.fish \
     %{buildroot}%{_datadir}/fish/vendor_completions.d/%{name}.fish
+install -D -m 0644 man/sanitize_filenames.1 \
+    %{buildroot}%{_mandir}/man1/%{name}.1
 
 %files
 %license LICENSE
@@ -40,6 +42,7 @@ install -D -m 0644 completions/sanitize_filenames.fish \
 %{_datadir}/bash-completion/completions/%{name}
 %{_datadir}/zsh/site-functions/_%{name}
 %{_datadir}/fish/vendor_completions.d/%{name}.fish
+%{_mandir}/man1/%{name}.1*
 
 %changelog
 * Tue Nov 26 2024 Packager Name <packager@example.com> - 0.1.0-1

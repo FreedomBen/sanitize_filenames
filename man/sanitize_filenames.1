@@ -1,0 +1,110 @@
+.TH SANITIZE_FILENAMES 1 "November 2024" "sanitize_filenames 0.1.0" "User Commands"
+.SH NAME
+sanitize_filenames \- sanitize file and directory names to be safer and easier to work with
+.SH SYNOPSIS
+.B sanitize_filenames
+[\fIOPTIONS\fR] [\fIFILES...\fR]
+.SH DESCRIPTION
+\fBsanitize_filenames\fR renames files and directories in-place to make their
+names easier and safer to work with on typical UNIX-like systems.
+It replaces or normalizes problematic characters (such as whitespace,
+punctuation, and certain symbols), collapses repeated separators, and
+preserves file extensions.
+
+You can operate on one or more files or directories. When a directory is
+given with \fB--recursive\fR, its contents (and optionally nested
+directories) are sanitized as well.
+
+Use \fB--dry-run\fR to preview changes without performing any actual renames.
+
+Use \fB--\fR to stop option parsing when a filename begins with a dash.
+.SH OPTIONS
+.TP
+\fB-r\fR, \fB--recursive\fR
+Recursively sanitize directories and their contents. When set, any directory
+arguments are walked and all files and subdirectories are renamed according
+to the same rules, then the directory itself is renamed.
+.TP
+\fB-n\fR, \fB--dry-run\fR
+Show actions without renaming files. The tool prints what it \fBwould\fR
+rename, but leaves the filesystem unchanged.
+.TP
+\fB-c\fI CHAR\fR, \fB--replacement\fR \fICHAR\fR
+Replacement character to use when normalizing disallowed characters.
+Defaults to underscore (\fB_\fR).
+
+The replacement must be a single character and cannot be the path separator
+(\fB/\fR). A few common choices are \fB_\fR, \fB-\fR, \fB.\fR, or \fB+\fR.
+.TP
+\fB-h\fR, \fB--help\fR
+Show a help message and exit.
+.TP
+\fB--\fR
+Stop option parsing. All subsequent arguments are treated as filenames,
+even if they begin with a dash. This is useful for sanitizing files like
+\fB\-example name.txt\fR.
+.SH BEHAVIOR
+.PP
+The sanitizer applies rules similar to:
+.IP \[bu] 2
+Convert the Unicode multiplication sign (\fB×\fR) to \fBx\fR.
+.IP \[bu] 2
+Replace whitespace and many punctuation characters
+(\fB.,\":?'#;&*\\()[]\fR) with the replacement character.
+.IP \[bu] 2
+Collapse consecutive replacement characters into a single instance.
+.IP \[bu] 2
+Preserve file extensions where possible; only the "basename" portion is
+sanitized, and the extension is reattached.
+.IP \[bu] 2
+When operating on paths that include directories, only the final path
+component is modified; parent directories are left as given unless
+sanitizing recursively.
+.SH EXAMPLES
+.TP
+Sanitize a single file in the current directory:
+.RS
+.nf
+sanitize_filenames "My File.txt"
+.fi
+.RE
+.TP
+Preview changes without renaming:
+.RS
+.nf
+sanitize_filenames --dry-run "My File.txt"
+.fi
+.RE
+.TP
+Recursively sanitize a downloads directory:
+.RS
+.nf
+sanitize_filenames --recursive ~/Downloads
+.fi
+.RE
+.TP
+Use \fB-\fR as the replacement character:
+.RS
+.nf
+sanitize_filenames --replacement - "My File.txt"
+.fi
+.RE
+.TP
+Sanitize a file whose name starts with a dash:
+.RS
+.nf
+sanitize_filenames -- --weird name.mp3
+.fi
+.RE
+.SH EXIT STATUS
+.TP
+\fB0\fR
+Success.
+.TP
+\fB1\fR
+Usage error, option parsing error, or other failure.
+.SH SEE ALSO
+.BR mv (1),
+.BR find (1),
+.BR bash (1)
+
