@@ -26,11 +26,14 @@ cargo build --release --target x86_64-unknown-linux-musl
 %install
 install -D -m 0755 target/x86_64-unknown-linux-musl/release/%{name} \
     %{buildroot}%{_bindir}/%{name}
+install -D -m 0644 completions/sanitize_filenames.bash \
+    %{buildroot}%{_datadir}/bash-completion/completions/%{name}
 
 %files
 %license LICENSE
 %doc README.md
 %{_bindir}/%{name}
+%{_datadir}/bash-completion/completions/%{name}
 
 %changelog
 * Tue Nov 26 2024 Packager Name <packager@example.com> - 0.1.0-1

@@ -31,6 +31,7 @@ rm -rf "${PKG_ROOT}"
 mkdir -p "${PKG_ROOT}/usr/bin"
 mkdir -p "${PKG_ROOT}/usr/share/doc/${PKGNAME}"
 mkdir -p "${PKG_ROOT}/usr/share/licenses/${PKGNAME}"
+mkdir -p "${PKG_ROOT}/usr/share/bash-completion/completions"
 
 install -m 0755 "target/${TARGET}/release/${BINARY_NAME}" \
   "${PKG_ROOT}/usr/bin/${BINARY_NAME}"
@@ -40,6 +41,9 @@ install -m 0644 LICENSE \
 
 install -m 0644 README.md \
   "${PKG_ROOT}/usr/share/doc/${PKGNAME}/README.md"
+
+install -m 0644 completions/sanitize_filenames.bash \
+  "${PKG_ROOT}/usr/share/bash-completion/completions/sanitize_filenames"
 
 SIZE="$(du -sb "${PKG_ROOT}" | cut -f1 || echo 0)"
 BUILD_DATE="$(date +%s)"
@@ -63,4 +67,3 @@ OUTPUT_PKG="${PKG_DEST_DIR}/${PKGNAME}-${PKGVER}-${ARCH}.pkg.tar.zst"
 tar -C "${PKG_ROOT}" -c . | zstd -q -o "${OUTPUT_PKG}"
 
 echo "Built Arch package: ${OUTPUT_PKG}"
-

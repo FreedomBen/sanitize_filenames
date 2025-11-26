@@ -21,12 +21,16 @@ rm -rf "target/deb/${DEB_PACKAGE}_${VERSION}"
 mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/DEBIAN"
 mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/usr/bin"
 mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/doc/${DEB_PACKAGE}"
+mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/bash-completion/completions"
 
 install -m 0755 "target/${TARGET}/release/${BINARY_NAME}" \
   "target/deb/${DEB_PACKAGE}_${VERSION}/usr/bin/${BINARY_NAME}"
 
 cp LICENSE README.md \
   "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/doc/${DEB_PACKAGE}/"
+
+install -m 0644 completions/sanitize_filenames.bash \
+  "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/bash-completion/completions/sanitize_filenames"
 
 CONTROL_FILE="target/deb/${DEB_PACKAGE}_${VERSION}/DEBIAN/control"
 {
