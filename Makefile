@@ -24,36 +24,10 @@ run: build
 	./target/$(TARGET)/release/$(BINARY_NAME)
 
 rpm:
-	tar czf $(BINARY_NAME)-$(VERSION).tar.gz \
-		--transform='s,^,$(BINARY_NAME)-$(VERSION)/,' \
-		--exclude-vcs --exclude target --exclude '*.rpm' --exclude '*.tar.gz' . || [ $$? -eq 1 ]
-	rpmbuild -ba \
-		--define "_sourcedir $(PWD)" \
-		--define "_srcrpmdir $(PWD)/target/srpm" \
-		--define "_rpmdir $(PWD)/target/rpm" \
-		--define "_builddir $(PWD)/target/rpmbuild" \
-		sanitize_filenames.spec
-	rm -f $(BINARY_NAME)-$(VERSION).tar.gz
+	./scripts/build-rpm.sh
 
 deb: build
-	@mkdir -p target/deb
-	@rm -rf target/deb/$(DEB_PACKAGE)_$(VERSION)
-	mkdir -p target/deb/$(DEB_PACKAGE)_$(VERSION)/DEBIAN
-	mkdir -p target/deb/$(DEB_PACKAGE)_$(VERSION)/usr/bin
-	mkdir -p target/deb/$(DEB_PACKAGE)_$(VERSION)/usr/share/doc/$(DEB_PACKAGE)
-	install -m 0755 target/$(TARGET)/release/$(BINARY_NAME) \
-		target/deb/$(DEB_PACKAGE)_$(VERSION)/usr/bin/$(BINARY_NAME)
-	cp LICENSE README.md \
-		target/deb/$(DEB_PACKAGE)_$(VERSION)/usr/share/doc/$(DEB_PACKAGE)/
-	printf "Package: $(DEB_PACKAGE)\n" > target/deb/$(DEB_PACKAGE)_$(VERSION)/DEBIAN/control
-	printf "Version: $(VERSION)-1\n" >> target/deb/$(DEB_PACKAGE)_$(VERSION)/DEBIAN/control
-	printf "Section: utils\n" >> target/deb/$(DEB_PACKAGE)_$(VERSION)/DEBIAN/control
-	printf "Priority: optional\n" >> target/deb/$(DEB_PACKAGE)_$(VERSION)/DEBIAN/control
-	printf "Architecture: $(DEB_ARCH)\n" >> target/deb/$(DEB_PACKAGE)_$(VERSION)/DEBIAN/control
-	printf "Maintainer: Benjamin Porter <freedomben@protonmail.com>\n" >> target/deb/$(DEB_PACKAGE)_$(VERSION)/DEBIAN/control
-	printf "Description: CLI tool to sanitize filenames\n" >> target/deb/$(DEB_PACKAGE)_$(VERSION)/DEBIAN/control
-	dpkg-deb --build target/deb/$(DEB_PACKAGE)_$(VERSION) \
-		target/deb/$(DEB_PACKAGE)_$(VERSION)_$(DEB_ARCH).deb
+	./scripts/build-deb.sh
 
 test:
 	cargo test
