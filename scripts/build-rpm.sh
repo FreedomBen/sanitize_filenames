@@ -31,11 +31,15 @@ if [ ! -f "${ARCHIVE}" ]; then
   exit 1
 fi
 
-rpmbuild -ba \
-  --define "_sourcedir ${ROOT_DIR}" \
-  --define "_srcrpmdir ${ROOT_DIR}/target/srpm" \
-  --define "_rpmdir ${ROOT_DIR}/target/rpm" \
-  --define "_builddir ${ROOT_DIR}/target/rpmbuild" \
-  sanitize_filenames.spec
+for dist in fc41 fc42 fc43 el8 el9 el10; do
+  echo "Building RPM for dist .${dist}..."
+  rpmbuild -ba \
+    --define "_sourcedir ${ROOT_DIR}" \
+    --define "_srcrpmdir ${ROOT_DIR}/target/srpm" \
+    --define "_rpmdir ${ROOT_DIR}/target/rpm/${dist}" \
+    --define "_builddir ${ROOT_DIR}/target/rpmbuild/${dist}" \
+    --define "dist .${dist}" \
+    sanitize_filenames.spec
+done
 
 rm -f "${BINARY_NAME}-${VERSION}.tar.gz"
