@@ -137,3 +137,13 @@ make deb
 ```
 
 This produces a `.deb` package under `target/deb/` (package name `sanitize-filenames`, containing the `sanitize_filenames` binary in `/usr/bin`).
+
+### Arch Linux
+
+On Arch (with `base-devel`, `rust`, `cargo`, and `musl` installed), you can build a local package using the included `PKGBUILD`:
+
+```sh
+make clean        # optional
+make build        # or: cargo build --release --target x86_64-unknown-linux-musl
+makepkg -si       # builds and installs the sanitize-filenames package
+```

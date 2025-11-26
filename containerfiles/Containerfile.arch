@@ -1,0 +1,23 @@
+FROM archlinux:latest
+
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm \
+      base-devel \
+      git \
+      rustup \
+      musl \
+      zstd && \
+    pacman -Scc --noconfirm
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:${PATH} \
+    MUSL_TARGET=x86_64-unknown-linux-musl
+
+RUN rustup default stable && \
+    rustup target add "${MUSL_TARGET}"
+
+WORKDIR /workspace
+
+CMD ["bash", "-lc", "cd /workspace && ./scripts/build-arch-pkg.sh"]
+
