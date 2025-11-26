@@ -1,0 +1,13 @@
+#compdef sanitize_filenames
+
+_sanitize_filenames() {
+  _arguments -s -S \
+    '(-h --help)'{-h,--help}'[Show this help message and exit]' \
+    '(-r --recursive)'{-r,--recursive}'[Recursively sanitize directories and their contents]' \
+    '(-n --dry-run)'{-n,--dry-run}'[Show actions without renaming files]' \
+    '(-c --replacement)'{-c,--replacement}'[Replacement character to use]:replacement character:(\ _ - . +)' \
+    '*:file or directory:_files'
+}
+
+_sanitize_filenames "$@"
+

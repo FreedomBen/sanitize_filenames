@@ -22,6 +22,8 @@ mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/DEBIAN"
 mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/usr/bin"
 mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/doc/${DEB_PACKAGE}"
 mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/bash-completion/completions"
+mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/zsh/vendor-completions"
+mkdir -p "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/fish/vendor_completions.d"
 
 install -m 0755 "target/${TARGET}/release/${BINARY_NAME}" \
   "target/deb/${DEB_PACKAGE}_${VERSION}/usr/bin/${BINARY_NAME}"
@@ -31,6 +33,12 @@ cp LICENSE README.md \
 
 install -m 0644 completions/sanitize_filenames.bash \
   "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/bash-completion/completions/sanitize_filenames"
+
+install -m 0644 completions/_sanitize_filenames \
+  "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/zsh/vendor-completions/_sanitize_filenames"
+
+install -m 0644 completions/sanitize_filenames.fish \
+  "target/deb/${DEB_PACKAGE}_${VERSION}/usr/share/fish/vendor_completions.d/sanitize_filenames.fish"
 
 CONTROL_FILE="target/deb/${DEB_PACKAGE}_${VERSION}/DEBIAN/control"
 {

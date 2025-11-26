@@ -28,12 +28,18 @@ install -D -m 0755 target/x86_64-unknown-linux-musl/release/%{name} \
     %{buildroot}%{_bindir}/%{name}
 install -D -m 0644 completions/sanitize_filenames.bash \
     %{buildroot}%{_datadir}/bash-completion/completions/%{name}
+install -D -m 0644 completions/_sanitize_filenames \
+    %{buildroot}%{_datadir}/zsh/site-functions/_%{name}
+install -D -m 0644 completions/sanitize_filenames.fish \
+    %{buildroot}%{_datadir}/fish/vendor_completions.d/%{name}.fish
 
 %files
 %license LICENSE
 %doc README.md
 %{_bindir}/%{name}
 %{_datadir}/bash-completion/completions/%{name}
+%{_datadir}/zsh/site-functions/_%{name}
+%{_datadir}/fish/vendor_completions.d/%{name}.fish
 
 %changelog
 * Tue Nov 26 2024 Packager Name <packager@example.com> - 0.1.0-1

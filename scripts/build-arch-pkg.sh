@@ -32,6 +32,8 @@ mkdir -p "${PKG_ROOT}/usr/bin"
 mkdir -p "${PKG_ROOT}/usr/share/doc/${PKGNAME}"
 mkdir -p "${PKG_ROOT}/usr/share/licenses/${PKGNAME}"
 mkdir -p "${PKG_ROOT}/usr/share/bash-completion/completions"
+mkdir -p "${PKG_ROOT}/usr/share/zsh/site-functions"
+mkdir -p "${PKG_ROOT}/usr/share/fish/vendor_completions.d"
 
 install -m 0755 "target/${TARGET}/release/${BINARY_NAME}" \
   "${PKG_ROOT}/usr/bin/${BINARY_NAME}"
@@ -44,6 +46,12 @@ install -m 0644 README.md \
 
 install -m 0644 completions/sanitize_filenames.bash \
   "${PKG_ROOT}/usr/share/bash-completion/completions/sanitize_filenames"
+
+install -m 0644 completions/_sanitize_filenames \
+  "${PKG_ROOT}/usr/share/zsh/site-functions/_sanitize_filenames"
+
+install -m 0644 completions/sanitize_filenames.fish \
+  "${PKG_ROOT}/usr/share/fish/vendor_completions.d/sanitize_filenames.fish"
 
 SIZE="$(du -sb "${PKG_ROOT}" | cut -f1 || echo 0)"
 BUILD_DATE="$(date +%s)"
