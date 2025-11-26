@@ -3,9 +3,14 @@ name: CI
 on:
   push:
     branches: [ main, master ]
+    tags:
+      - 'v*.*.*'
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 env:
   RUST_TOOLCHAIN: stable
@@ -222,3 +227,55 @@ jobs:
         with:
           name: sanitize-filenames-${{ env.PKG_VERSION }}-r0-x86_64.apk
           path: target/alpinepkg/sanitize-filenames-${{ env.PKG_VERSION }}-r0-x86_64.apk
+
+  publish-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - release-binary
+      - release-rpm
+      - release-deb
+      - release-arch
+      - release-alpine
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: vars
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          VERSION="${TAG_NAME#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build all release artifacts (containerized)
+        run: |
+          make release-binary
+          make release-rpm
+          make release-deb
+          make release-arch
+          make release-alpine
+
+      - name: Prepare binary filename
+        run: |
+          VERSION="${{ steps.vars.outputs.version }}"
+          cp "target/${{ env.MUSL_TARGET }}/release/sanitize_filenames" \
+             "sanitize_filenames-${VERSION}-${{ env.MUSL_TARGET }}"
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: |
+            sanitize_filenames-${{ steps.vars.outputs.version }}-${{ env.MUSL_TARGET }}
+            target/deb/sanitize-filenames_${{ steps.vars.outputs.version }}_amd64.deb
+            target/archpkg/sanitize-filenames-${{ steps.vars.outputs.version }}-1-x86_64.pkg.tar.zst
+            target/alpinepkg/sanitize-filenames-${{ steps.vars.outputs.version }}-r0-x86_64.apk
+            target/rpm/**/*.rpm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
