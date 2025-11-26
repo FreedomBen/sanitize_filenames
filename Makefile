@@ -25,7 +25,7 @@ run: build
 rpm:
 	tar czf $(BINARY_NAME)-$(VERSION).tar.gz \
 		--transform='s,^,$(BINARY_NAME)-$(VERSION)/,' \
-		--exclude-vcs --exclude target --exclude '*.rpm' --exclude '*.tar.gz' .
+		--exclude-vcs --exclude target --exclude '*.rpm' --exclude '*.tar.gz' . || [ $$? -eq 1 ]
 	rpmbuild -ba \
 		--define "_sourcedir $(PWD)" \
 		--define "_srcrpmdir $(PWD)/target/srpm" \
