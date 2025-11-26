@@ -4,7 +4,10 @@ RUN apk add --no-cache \
       build-base \
       bash \
       git \
-      zstd
+      zstd \
+      musl-dev && \
+    # Provide musl-gcc wrapper expected by .cargo/config.toml
+    ln -sf /usr/bin/gcc /usr/bin/musl-gcc
 
 WORKDIR /workspace
 
