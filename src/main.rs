@@ -1,3 +1,5 @@
 fn main() {
-    println!("working");
+    let code = sanitize_filenames::run_from_env();
+    std::process::exit(code);
 }
+

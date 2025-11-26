@@ -1,6 +1,6 @@
 # sanitize_filenames
 
-Rust implementation of a filename sanitizer that builds to a statically linked binary.
+Rust implementation of a filename sanitizer that builds to a statically linked binary and provides a CLI for renaming files and directories.
 
 ## Prerequisites
 
@@ -54,7 +54,8 @@ rustup target add x86_64-unknown-linux-musl
 ## Project layout
 
 - `Cargo.toml` – Rust package manifest.
-- `src/main.rs` – Binary entrypoint (currently prints `working`).
+- `src/main.rs` – Binary entrypoint for the CLI.
+- `src/lib.rs` – Core library with sanitization logic and tests.
 - `.cargo/config.toml` – Configures the default build target to `x86_64-unknown-linux-musl` and uses `musl-gcc` as the linker.
 - `Makefile` – Convenience targets for building, fetching dependencies, and cleaning.
 
@@ -103,14 +104,14 @@ cargo clean
 
 ## Running the binary
 
-After building:
+After building, you can run the CLI directly:
 
 ```sh
-./target/x86_64-unknown-linux-musl/release/sanitize_filenames
+./target/x86_64-unknown-linux-musl/release/sanitize_filenames [options] [FILES...]
 ```
 
-You should see:
+For usage information:
 
-```text
-working
+```sh
+./target/x86_64-unknown-linux-musl/release/sanitize_filenames --help
 ```

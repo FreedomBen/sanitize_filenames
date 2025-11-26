@@ -1,7 +1,7 @@
 BINARY_NAME := sanitize_filenames
 TARGET := x86_64-unknown-linux-musl
 
-.PHONY: all build clean deps initialize run
+.PHONY: all build clean deps initialize run test
 
 all: build
 
@@ -18,6 +18,9 @@ build:
 
 run: build
 	./target/$(TARGET)/release/$(BINARY_NAME)
+
+test:
+	cargo test
 
 clean:
 	cargo clean
