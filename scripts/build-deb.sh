@@ -8,7 +8,11 @@ cd "${ROOT_DIR}"
 
 BINARY_NAME="sanitize_filenames"
 TARGET="x86_64-unknown-linux-musl"
-VERSION="$(sed -n 's/^version = \"\\(.*\\)\"/\\1/p' Cargo.toml)"
+VERSION="$(awk -F\" '/^version = / {print $2; exit}' Cargo.toml)"
+if [ -z "${VERSION}" ]; then
+  echo "Error: could not determine version from Cargo.toml" >&2
+  exit 1
+fi
 DEB_PACKAGE="sanitize-filenames"
 DEB_ARCH="amd64"
 
@@ -37,4 +41,3 @@ CONTROL_FILE="target/deb/${DEB_PACKAGE}_${VERSION}/DEBIAN/control"
 
 dpkg-deb --build "target/deb/${DEB_PACKAGE}_${VERSION}" \
   "target/deb/${DEB_PACKAGE}_${VERSION}_${DEB_ARCH}.deb"
-
