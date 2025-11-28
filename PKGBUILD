@@ -1,5 +1,5 @@
 pkgname=sanitize-filenames
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc='CLI tool to sanitize filenames'
 arch=('x86_64')

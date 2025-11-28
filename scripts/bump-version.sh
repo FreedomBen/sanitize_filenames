@@ -7,11 +7,25 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 usage() {
   echo "Usage: $(basename "$0") <version>" >&2
   echo "  Example versions: v1.1.1, 1.1.1, v0.1.0, 2.2.2" >&2
-  exit 1
 }
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -eq 0 ]]; then
   usage
+  echo ''
+  if [[ -f "${ROOT_DIR}/Cargo.toml" ]]; then
+    current_version="$(awk -F '\"' '/^version = / { print $2; exit }' "${ROOT_DIR}/Cargo.toml" || true)"
+    if [[ -n "${current_version:-}" ]]; then
+      echo "Current version: ${current_version}" >&2
+    else
+      echo "Current version: (unknown)" >&2
+    fi
+  else
+    echo "Current version: (unknown)" >&2
+  fi
+  exit 1
+elif [[ $# -ne 1 ]]; then
+  usage
+  exit 1
 fi
 
 RAW_VERSION="$1"
@@ -75,4 +89,3 @@ if [[ -f man/sanitize_filenames.1 ]]; then
 fi
 
 echo "Version bump to $VERSION complete."
-

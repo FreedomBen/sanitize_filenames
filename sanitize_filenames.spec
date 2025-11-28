@@ -1,5 +1,5 @@
 Name:           sanitize_filenames
-Version:        0.1.0
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        CLI tool to sanitize filenames
 
@@ -45,5 +45,5 @@ install -D -m 0644 man/sanitize_filenames.1 \
 %{_mandir}/man1/%{name}.1*
 
 %changelog
-* Tue Nov 26 2024 Packager Name <packager@example.com> - 0.1.0-1
+* Fri Nov 28 2025 Packager Name <packager@example.com> - 0.2.0-1
 - Initial RPM release
