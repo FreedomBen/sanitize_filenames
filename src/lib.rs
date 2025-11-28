@@ -378,10 +378,8 @@ pub fn sanitize_directory_tree(
     rename_path(path, &new_path, dry_run)
 }
 
-pub fn run_from_env() -> i32 {
-    let args: Vec<String> = env::args().skip(1).collect();
-
-    let config = match parse_args(&args) {
+fn run_with_args(args: &[String]) -> i32 {
+    let config = match parse_args(args) {
         Ok(cfg) => cfg,
         Err(CliError::Help) => {
             let _ = print_usage(io::stdout());
@@ -406,6 +404,11 @@ pub fn run_from_env() -> i32 {
     }
 
     0
+}
+
+pub fn run_from_env() -> i32 {
+    let args: Vec<String> = env::args().skip(1).collect();
+    run_with_args(&args)
 }
 
 pub fn run(config: Config) -> io::Result<()> {
@@ -443,6 +446,177 @@ mod tests {
         base.push(unique);
         fs::create_dir_all(&base).unwrap();
         base
+    }
+
+    #[test]
+    fn print_usage_includes_sections() {
+        let mut buf: Vec<u8> = Vec::new();
+        print_usage(&mut buf).expect("print_usage failed");
+        let output = String::from_utf8(buf).expect("usage is valid UTF-8");
+        assert!(output.contains("Usage: sanitize_filenames [options] [FILES...]"));
+        assert!(output.contains("Options:"));
+        assert!(output.contains("Examples:"));
+    }
+
+    #[test]
+    fn has_dot_recognizes_periods() {
+        assert!(!has_dot("file"));
+        assert!(has_dot("file.txt"));
+        assert!(has_dot(".hidden"));
+        assert!(has_dot("a.b.c"));
+    }
+
+    #[test]
+    fn is_hidden_detects_leading_dot_only() {
+        assert!(is_hidden(".gitignore"));
+        assert!(!is_hidden("file"));
+        assert!(!is_hidden("dir/.git"));
+    }
+
+    #[test]
+    fn is_directory_matches_filesystem() {
+        let base = temp_dir();
+        let dir = base.join("dir");
+        let file = base.join("file.txt");
+
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(&file, "test").unwrap();
+
+        assert!(is_directory(dir.to_str().unwrap()));
+        assert!(!is_directory(file.to_str().unwrap()));
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn has_extension_ignores_dirs_and_hidden_files() {
+        let base = temp_dir();
+        let dir_with_dot = base.join("dir.with.dot");
+        fs::create_dir_all(&dir_with_dot).unwrap();
+
+        assert!(!has_extension(dir_with_dot.to_str().unwrap()));
+        assert!(has_extension("file.txt"));
+        assert!(has_extension("archive.tar.gz"));
+        assert!(!has_extension(".gitignore"));
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn extract_extension_handles_files_and_dirs() {
+        let base = temp_dir();
+        let dir_with_dot = base.join("dir.with.dot");
+        fs::create_dir_all(&dir_with_dot).unwrap();
+
+        assert_eq!(extract_extension("file.txt"), "txt");
+        assert_eq!(extract_extension("archive.tar.gz"), "gz");
+        assert_eq!(
+            extract_extension(
+                &format!("{}/{}", dir_with_dot.to_string_lossy(), "file.dat")
+            ),
+            "dat"
+        );
+        assert_eq!(extract_extension(dir_with_dot.to_str().unwrap()), "");
+        assert_eq!(extract_extension(".gitignore"), "");
+
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn sanitize_component_collapses_repeated_replacements() {
+        let result = sanitize_component("Hello   World", '_', "");
+        assert_eq!(result, "Hello_World");
+    }
+
+    #[test]
+    fn sanitize_component_maps_special_characters_and_trailing_extension() {
+        let result = sanitize_component(
+            "August Gold Q&A Audio.m4a.wav",
+            '_',
+            "wav",
+        );
+        assert_eq!(result, "August_Gold_Q_A_Audio_m4a");
+    }
+
+    #[test]
+    fn sanitize_component_maps_multiplication_sign() {
+        let result = sanitize_component("size 4×4", '_', "");
+        assert_eq!(result, "size_4x4");
+    }
+
+    #[test]
+    fn parse_args_sets_flags_and_targets() {
+        let args = vec![
+            "-r".to_string(),
+            "--dry-run".to_string(),
+            "file1".to_string(),
+            ".".to_string(),
+            "..".to_string(),
+            "dir2".to_string(),
+        ];
+        let cfg = parse_args(&args).expect("parse_args failed");
+        assert!(cfg.recursive);
+        assert!(cfg.dry_run);
+        assert_eq!(cfg.replacement, '_');
+        assert_eq!(cfg.targets, vec!["file1".to_string(), "dir2".to_string()]);
+    }
+
+    #[test]
+    fn parse_args_replacement_forms() {
+        let args_short = vec!["-c".to_string(), "+".to_string(), "file".to_string()];
+        let cfg_short = parse_args(&args_short).expect("parse_args failed");
+        assert_eq!(cfg_short.replacement, '+');
+        assert_eq!(cfg_short.targets, vec!["file".to_string()]);
+
+        let args_short_inline = vec!["-c+".to_string(), "file".to_string()];
+        let cfg_short_inline =
+            parse_args(&args_short_inline).expect("parse_args failed");
+        assert_eq!(cfg_short_inline.replacement, '+');
+        assert_eq!(cfg_short_inline.targets, vec!["file".to_string()]);
+
+        let args_long_inline =
+            vec!["--replacement=+".to_string(), "file".to_string()];
+        let cfg_long_inline =
+            parse_args(&args_long_inline).expect("parse_args failed");
+        assert_eq!(cfg_long_inline.replacement, '+');
+        assert_eq!(cfg_long_inline.targets, vec!["file".to_string()]);
+    }
+
+    #[test]
+    fn parse_args_missing_replacement_argument() {
+        let args_short = vec!["-c".to_string()];
+        match parse_args(&args_short) {
+            Err(CliError::Message(msg)) => {
+                assert!(msg.contains("Option '-c' requires an argument"))
+            }
+            _ => panic!("expected error for missing -c argument"),
+        }
+
+        let args_long = vec!["--replacement".to_string()];
+        match parse_args(&args_long) {
+            Err(CliError::Message(msg)) => {
+                assert!(msg.contains("Option '--replacement' requires an argument"))
+            }
+            _ => panic!("expected error for missing --replacement argument"),
+        }
+    }
+
+    #[test]
+    fn parse_args_unknown_option_yields_error() {
+        let args = vec!["--unknown".to_string()];
+        match parse_args(&args) {
+            Err(CliError::Message(msg)) => {
+                assert!(msg.contains("Unknown option: --unknown"))
+            }
+            _ => panic!("expected error for unknown option"),
+        }
+    }
+
+    #[test]
+    fn parse_args_allows_single_dash_target() {
+        let args = vec!["-".to_string()];
+        let cfg = parse_args(&args).expect("parse_args failed");
+        assert_eq!(cfg.targets, vec!["-".to_string()]);
     }
 
     #[test]
@@ -652,6 +826,34 @@ mod tests {
     }
 
     #[test]
+    fn sanitize_directory_tree_handles_nonexistent_root() {
+        let tmp = temp_dir();
+        let missing = tmp.join("does_not_exist");
+
+        let result = sanitize_directory_tree(&missing, false, '_').unwrap();
+        assert_eq!(result, missing);
+        assert!(!missing.exists());
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn sanitize_directory_tree_sanitizes_single_file() {
+        let tmp = temp_dir();
+        let file = tmp.join("file name.txt");
+        fs::write(&file, "test").unwrap();
+
+        let result = sanitize_directory_tree(&file, false, '_').unwrap();
+        let expected = tmp.join("file_name.txt");
+
+        assert_eq!(result, expected);
+        assert!(!file.exists());
+        assert!(expected.exists());
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
     fn dry_run_does_not_rename() {
         let tmp = temp_dir();
         let file = tmp.join("file name.txt");
@@ -664,6 +866,164 @@ mod tests {
         assert_eq!(result, desired);
         assert!(file.exists());
         assert!(!desired.exists());
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn rename_path_noop_when_old_equals_new() {
+        let tmp = temp_dir();
+        let path = tmp.join("same.txt");
+        fs::write(&path, "test").unwrap();
+
+        let result = rename_path(&path, &path, false).unwrap();
+
+        assert_eq!(result, path);
+        assert!(path.exists());
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn rename_path_skips_when_old_missing() {
+        let tmp = temp_dir();
+        let old = tmp.join("missing.txt");
+        let new_path = tmp.join("new.txt");
+
+        let result = rename_path(&old, &new_path, false).unwrap();
+
+        assert_eq!(result, old);
+        assert!(!old.exists());
+        assert!(!new_path.exists());
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn rename_path_skips_when_new_exists() {
+        let tmp = temp_dir();
+        let old = tmp.join("old.txt");
+        let new_path = tmp.join("new.txt");
+
+        fs::write(&old, "test").unwrap();
+        fs::write(&new_path, "other").unwrap();
+
+        let result = rename_path(&old, &new_path, false).unwrap();
+
+        assert_eq!(result, old);
+        assert!(old.exists());
+        assert!(new_path.exists());
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn rename_path_renames_when_possible() {
+        let tmp = temp_dir();
+        let old = tmp.join("old name.txt");
+        let new_path = tmp.join("new_name.txt");
+
+        fs::write(&old, "test").unwrap();
+
+        let result = rename_path(&old, &new_path, false).unwrap();
+
+        assert_eq!(result, new_path);
+        assert!(!old.exists());
+        assert!(new_path.exists());
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn run_non_recursive_renames_target_files() {
+        let tmp = temp_dir();
+        let file = tmp.join("file name.txt");
+        fs::write(&file, "test").unwrap();
+
+        let original = file.to_str().unwrap().to_string();
+        let config = Config {
+            recursive: false,
+            dry_run: false,
+            replacement: '_',
+            targets: vec![original.clone()],
+        };
+
+        run(config).unwrap();
+
+        let expected_path =
+            PathBuf::from(sanitized_filename(&original, '_'));
+        assert!(!file.exists());
+        assert!(expected_path.exists());
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn run_recursive_respects_dry_run() {
+        let tmp = temp_dir();
+        let root = tmp.join("dir one");
+        let sub = root.join("sub dir");
+        fs::create_dir_all(&sub).unwrap();
+        let file = sub.join("file name.txt");
+        fs::write(&file, "test").unwrap();
+
+        let root_str = root.to_str().unwrap().to_string();
+        let config = Config {
+            recursive: true,
+            dry_run: true,
+            replacement: '_',
+            targets: vec![root_str.clone()],
+        };
+
+        run(config).unwrap();
+
+        assert!(root.exists());
+        assert!(sub.exists());
+        assert!(file.exists());
+
+        let expected_root =
+            PathBuf::from(sanitized_filename(&root_str, '_'));
+        assert!(!expected_root.exists());
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn run_with_args_help_returns_zero() {
+        let args = vec!["--help".to_string()];
+        let code = run_with_args(&args);
+        assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn run_with_args_reports_missing_targets() {
+        let args: Vec<String> = Vec::new();
+        let code = run_with_args(&args);
+        assert_eq!(code, 1);
+    }
+
+    #[test]
+    fn run_with_args_propagates_parse_error() {
+        let args = vec!["--unknown".to_string()];
+        let code = run_with_args(&args);
+        assert_eq!(code, 1);
+    }
+
+    #[test]
+    fn run_with_args_successfully_sanitizes_file() {
+        let tmp = temp_dir();
+        let file = tmp.join("file name.txt");
+        fs::write(&file, "test").unwrap();
+        let file_str = file.to_str().unwrap().to_string();
+        let args = vec![file_str.clone()];
+
+        let code = run_with_args(&args);
+        assert_eq!(code, 0);
+
+        let expected =
+            PathBuf::from(sanitized_filename(&file_str, '_'));
+        assert!(!file.exists());
+        assert!(expected.exists());
 
         fs::remove_dir_all(tmp).unwrap();
     }
