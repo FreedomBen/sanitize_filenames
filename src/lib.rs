@@ -4,12 +4,19 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, Clone, Copy)]
+pub enum SanitizeMode {
+    Legacy,
+    Full,
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub recursive: bool,
     pub dry_run: bool,
     pub replacement: char,
     pub targets: Vec<String>,
+    pub full_sanitize: bool,
 }
 
 #[derive(Debug)]
@@ -33,6 +40,14 @@ pub fn print_usage(mut w: impl Write) -> io::Result<()> {
     writeln!(
         w,
         "  -c, --replacement CHAR Replacement character to use (default: _)"
+    )?;
+    writeln!(
+        w,
+        "  -F, --full-sanitize    Replace all non-alphanumeric characters (except '_' and '-')"
+    )?;
+    writeln!(
+        w,
+        "                          with the replacement character"
     )?;
     writeln!(
         w,
@@ -101,6 +116,7 @@ pub fn parse_args(args: &[String]) -> Result<Config, CliError> {
     let mut recursive = false;
     let mut dry_run = false;
     let mut replacement = '_';
+    let mut full_sanitize = false;
     let mut targets: Vec<String> = Vec::new();
 
     let mut i = 0;
@@ -141,6 +157,10 @@ pub fn parse_args(args: &[String]) -> Result<Config, CliError> {
             }
             "-n" | "--dry-run" => {
                 dry_run = true;
+                i += 1;
+            }
+            "-F" | "--full-sanitize" => {
+                full_sanitize = true;
                 i += 1;
             }
             "-c" => {
@@ -195,6 +215,7 @@ pub fn parse_args(args: &[String]) -> Result<Config, CliError> {
         dry_run,
         replacement,
         targets,
+        full_sanitize,
     })
 }
 
@@ -225,23 +246,37 @@ fn extract_extension(path_str: &str) -> String {
     }
 }
 
-fn sanitize_component(name: &str, replacement: char, extension: &str) -> String {
-    // First pass: replace characters similar to the Ruby gsub chain.
+fn sanitize_component(
+    name: &str,
+    replacement: char,
+    extension: &str,
+    mode: SanitizeMode,
+) -> String {
+    // First pass: map characters according to the selected mode.
     let mut tmp = String::with_capacity(name.len());
     for ch in name.chars() {
-        let mapped = match ch {
-            '×' => 'x',
-            c if c.is_whitespace()
-                || matches!(
-                    c,
-                    '.' | ',' | '"' | ':' | '?' | '\'' | '#'
-                        | ';' | '&' | '*' | '\\'
-                ) =>
-            {
-                replacement
+        let mapped = match mode {
+            SanitizeMode::Legacy => match ch {
+                '×' => 'x',
+                c if c.is_whitespace()
+                    || matches!(
+                        c,
+                        '.' | ',' | '"' | ':' | '?' | '\'' | '#'
+                            | ';' | '&' | '*' | '\\'
+                    ) =>
+                {
+                    replacement
+                }
+                '(' | ')' | '[' | ']' => replacement,
+                _ => ch,
+            },
+            SanitizeMode::Full => {
+                if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                    ch
+                } else {
+                    replacement
+                }
             }
-            '(' | ')' | '[' | ']' => replacement,
-            _ => ch,
         };
         tmp.push(mapped);
     }
@@ -273,14 +308,19 @@ fn sanitize_component(name: &str, replacement: char, extension: &str) -> String 
     collapsed
 }
 
-pub fn sanitized_filename(input_file: &str, replacement: char) -> String {
+pub fn sanitized_filename(
+    input_file: &str,
+    replacement: char,
+    mode: SanitizeMode,
+) -> String {
     let extension = extract_extension(input_file);
 
     let path = Path::new(input_file);
     let fname_os: &OsStr = path.file_name().unwrap_or_else(|| OsStr::new(""));
     let fname = fname_os.to_string_lossy();
 
-    let mut result = sanitize_component(&fname, replacement, &extension);
+    let mut result =
+        sanitize_component(&fname, replacement, &extension, mode);
 
     // Reattach any parent directories, if present.
     if let Some(parent) = path.parent() {
@@ -338,6 +378,7 @@ pub fn sanitize_directory_tree(
     path: &Path,
     dry_run: bool,
     replacement: char,
+    mode: SanitizeMode,
 ) -> io::Result<PathBuf> {
     if !path.exists() {
         println!(
@@ -351,8 +392,11 @@ pub fn sanitize_directory_tree(
     let file_type = meta.file_type();
 
     if !(file_type.is_dir() && !file_type.is_symlink()) {
-        let new_name =
-            sanitized_filename(&path.to_string_lossy(), replacement);
+        let new_name = sanitized_filename(
+            &path.to_string_lossy(),
+            replacement,
+            mode,
+        );
         let new_path = PathBuf::from(new_name);
         return rename_path(path, &new_path, dry_run);
     }
@@ -364,16 +408,20 @@ pub fn sanitize_directory_tree(
         let child_type = child_meta.file_type();
 
         if child_type.is_dir() && !child_type.is_symlink() {
-            sanitize_directory_tree(&child_path, dry_run, replacement)?;
+            sanitize_directory_tree(&child_path, dry_run, replacement, mode)?;
         } else {
-            let new_name =
-                sanitized_filename(&child_path.to_string_lossy(), replacement);
+            let new_name = sanitized_filename(
+                &child_path.to_string_lossy(),
+                replacement,
+                mode,
+            );
             let new_path = PathBuf::from(new_name);
             rename_path(&child_path, &new_path, dry_run)?;
         }
     }
 
-    let new_name = sanitized_filename(&path.to_string_lossy(), replacement);
+    let new_name =
+        sanitized_filename(&path.to_string_lossy(), replacement, mode);
     let new_path = PathBuf::from(new_name);
     rename_path(path, &new_path, dry_run)
 }
@@ -412,14 +460,24 @@ pub fn run_from_env() -> i32 {
 }
 
 pub fn run(config: Config) -> io::Result<()> {
+    let mode = if config.full_sanitize {
+        SanitizeMode::Full
+    } else {
+        SanitizeMode::Legacy
+    };
+
     for target in &config.targets {
         let path = Path::new(target);
         if config.recursive {
-            let _ =
-                sanitize_directory_tree(path, config.dry_run, config.replacement)?;
+            let _ = sanitize_directory_tree(
+                path,
+                config.dry_run,
+                config.replacement,
+                mode,
+            )?;
         } else {
             let new_name =
-                sanitized_filename(target, config.replacement);
+                sanitized_filename(target, config.replacement, mode);
             let new_path = PathBuf::from(new_name);
             let _ = rename_path(path, &new_path, config.dry_run)?;
         }
@@ -524,7 +582,12 @@ mod tests {
 
     #[test]
     fn sanitize_component_collapses_repeated_replacements() {
-        let result = sanitize_component("Hello   World", '_', "");
+        let result = sanitize_component(
+            "Hello   World",
+            '_',
+            "",
+            SanitizeMode::Legacy,
+        );
         assert_eq!(result, "Hello_World");
     }
 
@@ -534,13 +597,15 @@ mod tests {
             "August Gold Q&A Audio.m4a.wav",
             '_',
             "wav",
+            SanitizeMode::Legacy,
         );
         assert_eq!(result, "August_Gold_Q_A_Audio_m4a");
     }
 
     #[test]
     fn sanitize_component_maps_multiplication_sign() {
-        let result = sanitize_component("size 4×4", '_', "");
+        let result =
+            sanitize_component("size 4×4", '_', "", SanitizeMode::Legacy);
         assert_eq!(result, "size_4x4");
     }
 
@@ -558,6 +623,7 @@ mod tests {
         assert!(cfg.recursive);
         assert!(cfg.dry_run);
         assert_eq!(cfg.replacement, '_');
+        assert!(!cfg.full_sanitize);
         assert_eq!(cfg.targets, vec!["file1".to_string(), "dir2".to_string()]);
     }
 
@@ -567,12 +633,14 @@ mod tests {
         let cfg_short = parse_args(&args_short).expect("parse_args failed");
         assert_eq!(cfg_short.replacement, '+');
         assert_eq!(cfg_short.targets, vec!["file".to_string()]);
+        assert!(!cfg_short.full_sanitize);
 
         let args_short_inline = vec!["-c+".to_string(), "file".to_string()];
         let cfg_short_inline =
             parse_args(&args_short_inline).expect("parse_args failed");
         assert_eq!(cfg_short_inline.replacement, '+');
         assert_eq!(cfg_short_inline.targets, vec!["file".to_string()]);
+        assert!(!cfg_short_inline.full_sanitize);
 
         let args_long_inline =
             vec!["--replacement=+".to_string(), "file".to_string()];
@@ -580,6 +648,7 @@ mod tests {
             parse_args(&args_long_inline).expect("parse_args failed");
         assert_eq!(cfg_long_inline.replacement, '+');
         assert_eq!(cfg_long_inline.targets, vec!["file".to_string()]);
+        assert!(!cfg_long_inline.full_sanitize);
     }
 
     #[test]
@@ -616,44 +685,103 @@ mod tests {
     fn parse_args_allows_single_dash_target() {
         let args = vec!["-".to_string()];
         let cfg = parse_args(&args).expect("parse_args failed");
+        assert!(!cfg.full_sanitize);
         assert_eq!(cfg.targets, vec!["-".to_string()]);
     }
 
     #[test]
+    fn parse_args_full_sanitize_flags() {
+        let args = vec!["--full-sanitize".to_string(), "file".to_string()];
+        let cfg = parse_args(&args).expect("parse_args failed");
+        assert!(cfg.full_sanitize);
+        assert_eq!(cfg.targets, vec!["file".to_string()]);
+
+        let args_short = vec!["-F".to_string(), "other".to_string()];
+        let cfg_short = parse_args(&args_short).expect("parse_args failed");
+        assert!(cfg_short.full_sanitize);
+        assert_eq!(cfg_short.targets, vec!["other".to_string()]);
+    }
+
+    #[test]
     fn sanitized_basic_cases() {
-        assert_eq!(sanitized_filename("×", '_'), "x");
-        assert_eq!(sanitized_filename("Hello", '_'), "Hello");
-        assert_eq!(sanitized_filename("hello.wav", '_'), "hello.wav");
-        assert_eq!(sanitized_filename("Hello World", '_'), "Hello_World");
-        assert_eq!(sanitized_filename("Hello.World", '_'), "Hello.World");
-        assert_eq!(sanitized_filename("hello world.wav", '_'), "hello_world.wav");
-        assert_eq!(sanitized_filename("Hello.world.wav", '_'), "Hello_world.wav");
         assert_eq!(
-            sanitized_filename("hello? + world.wav", '_'),
+            sanitized_filename("×", '_', SanitizeMode::Legacy),
+            "x"
+        );
+        assert_eq!(
+            sanitized_filename("Hello", '_', SanitizeMode::Legacy),
+            "Hello"
+        );
+        assert_eq!(
+            sanitized_filename("hello.wav", '_', SanitizeMode::Legacy),
+            "hello.wav"
+        );
+        assert_eq!(
+            sanitized_filename("Hello World", '_', SanitizeMode::Legacy),
+            "Hello_World"
+        );
+        assert_eq!(
+            sanitized_filename("Hello.World", '_', SanitizeMode::Legacy),
+            "Hello.World"
+        );
+        assert_eq!(
+            sanitized_filename("hello world.wav", '_', SanitizeMode::Legacy),
+            "hello_world.wav"
+        );
+        assert_eq!(
+            sanitized_filename("Hello.world.wav", '_', SanitizeMode::Legacy),
+            "Hello_world.wav"
+        );
+        assert_eq!(
+            sanitized_filename("hello? + world.wav", '_', SanitizeMode::Legacy),
             "hello_+_world.wav"
         );
         assert_eq!(
-            sanitized_filename("Bart_banner_14_5_×_2_5_in.png", '_'),
+            sanitized_filename(
+                "Bart_banner_14_5_×_2_5_in.png",
+                '_',
+                SanitizeMode::Legacy
+            ),
             "Bart_banner_14_5_x_2_5_in.png"
         );
         assert_eq!(
-            sanitized_filename("hello? &&*()#@+ world.wav", '_'),
+            sanitized_filename(
+                "hello? &&*()#@+ world.wav",
+                '_',
+                SanitizeMode::Legacy
+            ),
             "hello_@+_world.wav"
         );
         assert_eq!(
-            sanitized_filename("August Gold Q&A Audio.m4a.wav", '_'),
+            sanitized_filename(
+                "August Gold Q&A Audio.m4a.wav",
+                '_',
+                SanitizeMode::Legacy
+            ),
             "August_Gold_Q_A_Audio_m4a.wav"
         );
         assert_eq!(
-            sanitized_filename("nested/dir/file name.txt", '_'),
+            sanitized_filename(
+                "nested/dir/file name.txt",
+                '_',
+                SanitizeMode::Legacy
+            ),
             "nested/dir/file_name.txt"
         );
         assert_eq!(
-            sanitized_filename("/absolute/path/Hello World.txt", '_'),
+            sanitized_filename(
+                "/absolute/path/Hello World.txt",
+                '_',
+                SanitizeMode::Legacy
+            ),
             "/absolute/path/Hello_World.txt"
         );
         assert_eq!(
-            sanitized_filename("relative/./path/Hello World.txt", '_'),
+            sanitized_filename(
+                "relative/./path/Hello World.txt",
+                '_',
+                SanitizeMode::Legacy
+            ),
             "relative/./path/Hello_World.txt"
         );
     }
@@ -661,9 +789,31 @@ mod tests {
     #[test]
     fn custom_replacement() {
         assert_eq!(
-            sanitized_filename("Hello World.txt", '-'),
+            sanitized_filename(
+                "Hello World.txt",
+                '-',
+                SanitizeMode::Legacy
+            ),
             "Hello-World.txt"
         );
+    }
+
+    #[test]
+    fn full_sanitize_outputs_only_whitelisted_chars() {
+        let input = "Hello World! @#[](){}=+,.×é";
+        let output =
+            sanitized_filename(input, '_', SanitizeMode::Full);
+        let path = Path::new(&output);
+        let fname = path.file_name().unwrap().to_string_lossy();
+        let base = fname.split('.').next().unwrap();
+        for ch in base.chars() {
+            assert!(
+                ch.is_ascii_alphanumeric() || ch == '_' || ch == '-',
+                "found disallowed character {:?} in output {:?}",
+                ch,
+                output
+            );
+        }
     }
 
     #[test]
@@ -672,6 +822,7 @@ mod tests {
         let cfg = parse_args(&args).expect("parse_args failed");
         assert_eq!(cfg.replacement, '-');
         assert!(cfg.targets.is_empty());
+        assert!(!cfg.full_sanitize);
     }
 
     #[test]
@@ -693,7 +844,8 @@ mod tests {
         fs::write(&file, "test").unwrap();
 
         let sanitized_root =
-            sanitize_directory_tree(&root, false, '_').unwrap();
+            sanitize_directory_tree(&root, false, '_', SanitizeMode::Legacy)
+                .unwrap();
 
         let expected_root = tmp.join("dir_one");
         let expected_sub = expected_root.join("sub_dir");
@@ -716,7 +868,8 @@ mod tests {
         fs::write(&file, "test").unwrap();
 
         let sanitized_root =
-            sanitize_directory_tree(&root, false, '-').unwrap();
+            sanitize_directory_tree(&root, false, '-', SanitizeMode::Legacy)
+                .unwrap();
 
         let expected_root = tmp.join("dir-one");
         let expected_sub = expected_root.join("sub-dir");
@@ -754,51 +907,65 @@ mod tests {
         }
 
         let sanitized_root =
-            sanitize_directory_tree(&root, false, '_').unwrap();
+            sanitize_directory_tree(&root, false, '_', SanitizeMode::Legacy)
+                .unwrap();
 
-        let expected_root =
-            PathBuf::from(sanitized_filename(root.to_str().unwrap(), '_'));
+        let expected_root = PathBuf::from(sanitized_filename(
+            root.to_str().unwrap(),
+            '_',
+            SanitizeMode::Legacy,
+        ));
         let expected_child_one = PathBuf::from(sanitized_filename(
             expected_root.join("Child One").to_str().unwrap(),
             '_',
+            SanitizeMode::Legacy,
         ));
         let expected_child_two = PathBuf::from(sanitized_filename(
             expected_root.join("Second & Child").to_str().unwrap(),
             '_',
+            SanitizeMode::Legacy,
         ));
         let expected_grand_one = PathBuf::from(sanitized_filename(
             expected_child_one.join("Grand Child(1)").to_str().unwrap(),
             '_',
+            SanitizeMode::Legacy,
         ));
         let expected_grand_two = PathBuf::from(sanitized_filename(
             expected_child_two.join("Grand (Final)").to_str().unwrap(),
             '_',
+            SanitizeMode::Legacy,
         ));
 
         let expected_files = [
             PathBuf::from(sanitized_filename(
                 expected_root.join("Root File?.txt").to_str().unwrap(),
                 '_',
+                SanitizeMode::Legacy,
             )),
             PathBuf::from(sanitized_filename(
                 expected_child_one.join("Clip (A).mov").to_str().unwrap(),
                 '_',
+                SanitizeMode::Legacy,
             )),
             PathBuf::from(sanitized_filename(
                 expected_child_one.join("Clip (B).mov").to_str().unwrap(),
                 '_',
+                SanitizeMode::Legacy,
             )),
             PathBuf::from(sanitized_filename(
                 expected_grand_one.join("Take #1.wav").to_str().unwrap(),
                 '_',
+                SanitizeMode::Legacy,
             )),
             PathBuf::from(sanitized_filename(
                 expected_child_two.join("Audio (Draft).wav").to_str().unwrap(),
                 '_',
+                SanitizeMode::Legacy,
             )),
             PathBuf::from(sanitized_filename(
                 expected_grand_two.join("Mix #2?.wav").to_str().unwrap(),
                 '_',
+                SanitizeMode::Legacy,
             )),
         ];
 
@@ -830,7 +997,9 @@ mod tests {
         let tmp = temp_dir();
         let missing = tmp.join("does_not_exist");
 
-        let result = sanitize_directory_tree(&missing, false, '_').unwrap();
+        let result =
+            sanitize_directory_tree(&missing, false, '_', SanitizeMode::Legacy)
+                .unwrap();
         assert_eq!(result, missing);
         assert!(!missing.exists());
 
@@ -843,7 +1012,9 @@ mod tests {
         let file = tmp.join("file name.txt");
         fs::write(&file, "test").unwrap();
 
-        let result = sanitize_directory_tree(&file, false, '_').unwrap();
+        let result =
+            sanitize_directory_tree(&file, false, '_', SanitizeMode::Legacy)
+                .unwrap();
         let expected = tmp.join("file_name.txt");
 
         assert_eq!(result, expected);
@@ -859,8 +1030,11 @@ mod tests {
         let file = tmp.join("file name.txt");
         fs::write(&file, "test").unwrap();
 
-        let desired =
-            PathBuf::from(sanitized_filename(file.to_str().unwrap(), '_'));
+        let desired = PathBuf::from(sanitized_filename(
+            file.to_str().unwrap(),
+            '_',
+            SanitizeMode::Legacy,
+        ));
         let result = rename_path(&file, &desired, true).unwrap();
 
         assert_eq!(result, desired);
@@ -946,12 +1120,16 @@ mod tests {
             dry_run: false,
             replacement: '_',
             targets: vec![original.clone()],
+            full_sanitize: false,
         };
 
         run(config).unwrap();
 
-        let expected_path =
-            PathBuf::from(sanitized_filename(&original, '_'));
+        let expected_path = PathBuf::from(sanitized_filename(
+            &original,
+            '_',
+            SanitizeMode::Legacy,
+        ));
         assert!(!file.exists());
         assert!(expected_path.exists());
 
@@ -973,6 +1151,7 @@ mod tests {
             dry_run: true,
             replacement: '_',
             targets: vec![root_str.clone()],
+            full_sanitize: false,
         };
 
         run(config).unwrap();
@@ -982,7 +1161,7 @@ mod tests {
         assert!(file.exists());
 
         let expected_root =
-            PathBuf::from(sanitized_filename(&root_str, '_'));
+            PathBuf::from(sanitized_filename(&root_str, '_', SanitizeMode::Legacy));
         assert!(!expected_root.exists());
 
         fs::remove_dir_all(tmp).unwrap();
@@ -1020,8 +1199,11 @@ mod tests {
         let code = run_with_args(&args);
         assert_eq!(code, 0);
 
-        let expected =
-            PathBuf::from(sanitized_filename(&file_str, '_'));
+        let expected = PathBuf::from(sanitized_filename(
+            &file_str,
+            '_',
+            SanitizeMode::Legacy,
+        ));
         assert!(!file.exists());
         assert!(expected.exists());
 
@@ -1038,9 +1220,13 @@ mod tests {
         fs::write(&file, "test").unwrap();
 
         let sanitized_root =
-            sanitize_directory_tree(&root, true, '_').unwrap();
-        let expected_root =
-            PathBuf::from(sanitized_filename(root.to_str().unwrap(), '_'));
+            sanitize_directory_tree(&root, true, '_', SanitizeMode::Legacy)
+                .unwrap();
+        let expected_root = PathBuf::from(sanitized_filename(
+            root.to_str().unwrap(),
+            '_',
+            SanitizeMode::Legacy,
+        ));
 
         assert_eq!(sanitized_root, expected_root);
         assert!(root.exists());
@@ -1065,11 +1251,13 @@ mod tests {
 
         assert!(cfg.dry_run);
         assert_eq!(cfg.replacement, '_');
+        assert!(!cfg.full_sanitize);
         assert_eq!(cfg.targets, vec![file_str.clone()]);
 
         let desired = PathBuf::from(sanitized_filename(
             &file_str,
             cfg.replacement,
+            SanitizeMode::Legacy,
         ));
         rename_path(Path::new(&file_str), &desired, cfg.dry_run).unwrap();
 

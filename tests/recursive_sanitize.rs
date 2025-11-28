@@ -3,6 +3,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use sanitize_filenames::{sanitize_directory_tree, sanitized_filename, SanitizeMode};
+
 fn temp_dir() -> PathBuf {
     let mut base = env::temp_dir();
     let unique = format!(
@@ -53,34 +55,37 @@ fn recursively_sanitizes_diverse_characters() {
     }
 
     let sanitized_root =
-        sanitize_filenames::sanitize_directory_tree(&root, false, '_')
+        sanitize_directory_tree(&root, false, '_', SanitizeMode::Legacy)
             .unwrap();
 
-    let expected_root = PathBuf::from(sanitize_filenames::sanitized_filename(
+    let expected_root = PathBuf::from(sanitized_filename(
         root.to_str().unwrap(),
         '_',
+        SanitizeMode::Legacy,
     ));
-    let expected_child_one = PathBuf::from(sanitize_filenames::sanitized_filename(
+    let expected_child_one = PathBuf::from(sanitized_filename(
         expected_root.join("[Child Project] && Mixes?").to_str().unwrap(),
         '_',
+        SanitizeMode::Legacy,
     ));
-    let expected_child_two = PathBuf::from(sanitize_filenames::sanitized_filename(
+    let expected_child_two = PathBuf::from(sanitized_filename(
         expected_root.join("Second-Child (Drafts) #2").to_str().unwrap(),
         '_',
+        SanitizeMode::Legacy,
     ));
-    let expected_grand_one =
-        PathBuf::from(sanitize_filenames::sanitized_filename(
-            expected_child_one.join("Grand ?Child* [v1]").to_str().unwrap(),
-            '_',
-        ));
-    let expected_grand_two =
-        PathBuf::from(sanitize_filenames::sanitized_filename(
-            expected_child_two
-                .join("Grand Child×Final (Take #1)")
-                .to_str()
-                .unwrap(),
-            '_',
-        ));
+    let expected_grand_one = PathBuf::from(sanitized_filename(
+        expected_child_one.join("Grand ?Child* [v1]").to_str().unwrap(),
+        '_',
+        SanitizeMode::Legacy,
+    ));
+    let expected_grand_two = PathBuf::from(sanitized_filename(
+        expected_child_two
+            .join("Grand Child×Final (Take #1)")
+            .to_str()
+            .unwrap(),
+        '_',
+        SanitizeMode::Legacy,
+    ));
 
     assert_eq!(sanitized_root, expected_root);
     assert!(expected_root.is_dir());
@@ -102,9 +107,10 @@ fn recursively_sanitizes_diverse_characters() {
         let mut expected = expected_root.clone();
         for comp in rel.components() {
             let joined = expected.join(comp);
-            expected = PathBuf::from(sanitize_filenames::sanitized_filename(
+            expected = PathBuf::from(sanitized_filename(
                 joined.to_str().unwrap(),
                 '_',
+                SanitizeMode::Legacy,
             ));
         }
         assert!(
@@ -147,12 +153,13 @@ fn recursively_sanitizes_all_ascii_filename_characters() {
     }
 
     let sanitized_root =
-        sanitize_filenames::sanitize_directory_tree(&root, false, '_')
+        sanitize_directory_tree(&root, false, '_', SanitizeMode::Full)
             .unwrap();
 
-    let expected_root = PathBuf::from(sanitize_filenames::sanitized_filename(
+    let expected_root = PathBuf::from(sanitized_filename(
         root.to_str().unwrap(),
         '_',
+        SanitizeMode::Full,
     ));
 
     assert_eq!(sanitized_root, expected_root);
@@ -168,9 +175,10 @@ fn recursively_sanitizes_all_ascii_filename_characters() {
         let mut expected = expected_root.clone();
         for comp in rel.components() {
             let joined = expected.join(comp);
-            expected = PathBuf::from(sanitize_filenames::sanitized_filename(
+            expected = PathBuf::from(sanitized_filename(
                 joined.to_str().unwrap(),
                 '_',
+                SanitizeMode::Full,
             ));
         }
         assert!(
@@ -184,6 +192,18 @@ fn recursively_sanitizes_all_ascii_filename_characters() {
             "expected original file {:?} to be gone",
             original
         );
+
+        let fname = expected.file_name().unwrap().to_string_lossy();
+        let base = fname.split('.').next().unwrap();
+        for ch in base.chars() {
+            assert!(
+                ch.is_ascii_alphanumeric() || ch == '_' || ch == '-',
+                "unexpected character {:?} in sanitized filename {:?} for original {:?}",
+                ch,
+                expected,
+                original
+            );
+        }
     }
 
     fs::remove_dir_all(tmp).unwrap();

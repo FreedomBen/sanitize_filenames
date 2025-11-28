@@ -26,7 +26,7 @@ _sanitize_filenames()
 
   # If we're completing an option (and not after `--`), offer flags.
   if [[ $have_terminator -eq 0 && $cur == -* ]]; then
-    local opts="--recursive -r --dry-run -n --replacement -c --help -h --"
+    local opts="--recursive -r --dry-run -n --replacement -c --full-sanitize -F --help -h --"
     COMPREPLY=( $(compgen -W "${opts}" -- "$cur") )
     return 0
   fi
@@ -37,4 +37,3 @@ _sanitize_filenames()
 }
 
 complete -F _sanitize_filenames sanitize_filenames
-

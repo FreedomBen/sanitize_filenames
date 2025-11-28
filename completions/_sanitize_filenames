@@ -6,8 +6,8 @@ _sanitize_filenames() {
     '(-r --recursive)'{-r,--recursive}'[Recursively sanitize directories and their contents]' \
     '(-n --dry-run)'{-n,--dry-run}'[Show actions without renaming files]' \
     '(-c --replacement)'{-c,--replacement}'[Replacement character to use]:replacement character:(\ _ - . +)' \
+    '(-F --full-sanitize)'{-F,--full-sanitize}'[Replace all non-alphanumeric characters (except _ and -) with the replacement character]' \
     '*:file or directory:_files'
 }
 
 _sanitize_filenames "$@"
-

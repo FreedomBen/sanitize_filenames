@@ -36,6 +36,12 @@ Defaults to underscore (\fB_\fR).
 The replacement must be a single character and cannot be the path separator
 (\fB/\fR). A few common choices are \fB_\fR, \fB-\fR, \fB.\fR, or \fB+\fR.
 .TP
+\fB-F\fR, \fB--full-sanitize\fR
+Enable strict whitelist sanitization. All characters in the basename
+that are not letters, digits, underscores (\fB_\fR), or hyphens (\fB-\fR)
+are replaced with the replacement character. File extensions are still
+preserved.
+.TP
 \fB-h\fR, \fB--help\fR
 Show a help message and exit.
 .TP
@@ -51,6 +57,10 @@ Convert the Unicode multiplication sign (\fB×\fR) to \fBx\fR.
 .IP \[bu] 2
 Replace whitespace and many punctuation characters
 (\fB.,\":?'#;&*\\()[]\fR) with the replacement character.
+.IP \[bu] 2
+When \fB--full-sanitize\fR is used, any character in the basename that is
+not alphanumeric or one of \fB_\fR or \fB-\fR is replaced with the
+replacement character, while still preserving extensions.
 .IP \[bu] 2
 Collapse consecutive replacement characters into a single instance.
 .IP \[bu] 2
@@ -107,4 +117,3 @@ Usage error, option parsing error, or other failure.
 .BR mv (1),
 .BR find (1),
 .BR bash (1)
-
