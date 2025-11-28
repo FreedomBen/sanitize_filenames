@@ -1137,6 +1137,48 @@ mod tests {
     }
 
     #[test]
+    fn run_non_recursive_does_not_recurse_into_directories() {
+        let tmp = temp_dir();
+        let root = tmp.join("dir one");
+        let sub = root.join("sub dir");
+        fs::create_dir_all(&sub).unwrap();
+        let file = sub.join("file name.txt");
+        fs::write(&file, "test").unwrap();
+
+        let root_str = root.to_str().unwrap().to_string();
+        let config = Config {
+            recursive: false,
+            dry_run: false,
+            replacement: '_',
+            targets: vec![root_str.clone()],
+            full_sanitize: false,
+        };
+
+        run(config).unwrap();
+
+        let expected_root = PathBuf::from(sanitized_filename(
+            &root_str,
+            '_',
+            SanitizeMode::Legacy,
+        ));
+        assert!(!root.exists());
+        assert!(expected_root.exists());
+
+        let expected_sub = expected_root.join("sub dir");
+        let expected_file = expected_sub.join("file name.txt");
+        assert!(
+            expected_sub.is_dir(),
+            "expected non-recursive run to leave subdirectory name unchanged"
+        );
+        assert!(
+            expected_file.is_file(),
+            "expected non-recursive run to leave file name unchanged"
+        );
+
+        fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
     fn run_recursive_respects_dry_run() {
         let tmp = temp_dir();
         let root = tmp.join("dir one");
