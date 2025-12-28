@@ -305,7 +305,16 @@ fn sanitize_component(
         }
     }
 
-    collapsed
+    // Trim any leading or trailing replacement characters to avoid
+    // introducing sanitized names that start or end with them.
+    let trimmed = collapsed.trim_matches(replacement).to_string();
+    if trimmed.is_empty() && !collapsed.is_empty() {
+        // Preserve a single replacement character for inputs that were
+        // entirely replaced so the filename does not become empty.
+        collapsed.chars().next().into_iter().collect()
+    } else {
+        trimmed
+    }
 }
 
 pub fn sanitized_filename(
@@ -778,11 +787,46 @@ mod tests {
         );
         assert_eq!(
             sanitized_filename(
-                "relative/./path/Hello World.txt",
+            "relative/./path/Hello World.txt",
+            '_',
+            SanitizeMode::Legacy
+        ),
+        "relative/./path/Hello_World.txt"
+    );
+}
+
+    #[test]
+    fn sanitized_trims_edge_replacements() {
+        assert_eq!(
+            sanitized_filename(
+                "🐾_The_Adventures_of_Marshal_Poppy_The_Great_Sarsaparilla_Heist.md",
+                '_',
+                SanitizeMode::Full
+            ),
+            "The_Adventures_of_Marshal_Poppy_The_Great_Sarsaparilla_Heist.md"
+        );
+
+        assert_eq!(
+            sanitized_filename("  spaced  ", '_', SanitizeMode::Legacy),
+            "spaced"
+        );
+
+        assert_eq!(
+            sanitized_filename(
+                "_The_Adventures_of_Marshal_Poppy_The_Great_Sarsaparilla_Heist_.md",
                 '_',
                 SanitizeMode::Legacy
             ),
-            "relative/./path/Hello_World.txt"
+            "The_Adventures_of_Marshal_Poppy_The_Great_Sarsaparilla_Heist.md"
+        );
+
+        assert_eq!(
+            sanitized_filename(
+                "nested/  spaced  .txt",
+                '_',
+                SanitizeMode::Legacy
+            ),
+            "nested/spaced.txt"
         );
     }
 
