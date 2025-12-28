@@ -5,7 +5,7 @@ DEB_PACKAGE := sanitize-filenames
 DEB_ARCH := amd64
 
 .PHONY: all build clean deps initialize run test rpm deb arch-pkg alpine-apk \
-	release-binary release-rpm release-deb release-arch release-alpine
+	release-binary release-rpm release-deb release-arch release-alpine install
 
 all: build
 
@@ -52,6 +52,10 @@ release-arch:
 
 release-alpine:
 	./scripts/build-alpine-apk-container.sh
+
+install: build
+	mkdir -p "$(HOME)/bin"
+	install -m 0755 "target/$(TARGET)/release/$(BINARY_NAME)" "$(HOME)/bin/"
 
 clean:
 	cargo clean
