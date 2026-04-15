@@ -1,15 +1,16 @@
 #!/usr/bin/env ruby
 
 #
+# Note: This was the original version of sanitize_filenames.
+#       This script still works, but may lack some of the newer
+#       features/refinement of the rust version
+#
+
+#
 # sanitize_filename.rb - A script to sanitize filenames to make them easier
 #                        and safer to work with.  Pass in a list of filenames
 #                        or directories and the script will rename them to
 #                        remove whitespace and special characters.
-#
-# TODO
-#
-# 1.  Add a summary report of renamed files at the end of execution
-# 2.  Consider exposing an allowlist of characters beyond simple replacement
 #
 
 require 'fileutils'
