@@ -4,6 +4,74 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use crate::color::Palette;
+
+pub mod color {
+    use std::env;
+    use std::io::{self, IsTerminal};
+
+    #[derive(Debug, Clone, Copy)]
+    pub struct Palette {
+        pub bold: &'static str,
+        pub dim: &'static str,
+        pub reset: &'static str,
+        pub red: &'static str,
+        pub green: &'static str,
+        pub yellow: &'static str,
+        pub cyan: &'static str,
+        pub magenta: &'static str,
+    }
+
+    impl Palette {
+        pub const fn plain() -> Self {
+            Self {
+                bold: "",
+                dim: "",
+                reset: "",
+                red: "",
+                green: "",
+                yellow: "",
+                cyan: "",
+                magenta: "",
+            }
+        }
+
+        pub const fn ansi() -> Self {
+            Self {
+                bold: "\x1b[1m",
+                dim: "\x1b[2m",
+                reset: "\x1b[0m",
+                red: "\x1b[31m",
+                green: "\x1b[32m",
+                yellow: "\x1b[33m",
+                cyan: "\x1b[36m",
+                magenta: "\x1b[35m",
+            }
+        }
+    }
+
+    // Honors the NO_COLOR convention (https://no-color.org/).
+    fn colors_allowed() -> bool {
+        !env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty())
+    }
+
+    pub fn for_stdout() -> Palette {
+        if colors_allowed() && io::stdout().is_terminal() {
+            Palette::ansi()
+        } else {
+            Palette::plain()
+        }
+    }
+
+    pub fn for_stderr() -> Palette {
+        if colors_allowed() && io::stderr().is_terminal() {
+            Palette::ansi()
+        } else {
+            Palette::plain()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum SanitizeMode {
     Legacy,
@@ -25,25 +93,27 @@ pub enum CliError {
     Help,
 }
 
-pub fn print_usage(mut w: impl Write) -> io::Result<()> {
-    writeln!(w, "Usage: sanitize_filenames [options] [FILES...]")?;
+pub fn print_usage(mut w: impl Write, p: Palette) -> io::Result<()> {
+    let Palette { bold, dim, reset, green, yellow, cyan, .. } = p;
+
+    writeln!(w, "{bold}{yellow}Usage:{reset} {bold}sanitize_filenames{reset} [options] [FILES...]")?;
     writeln!(w)?;
-    writeln!(w, "Options:")?;
+    writeln!(w, "{bold}{yellow}Options:{reset}")?;
     writeln!(
         w,
-        "  -r, --recursive        Recursively sanitize directories and their contents"
+        "  {bold}{green}-r{reset}, {bold}{green}--recursive{reset}        Recursively sanitize directories and their contents"
     )?;
     writeln!(
         w,
-        "  -n, --dry-run          Show actions without renaming files"
+        "  {bold}{green}-n{reset}, {bold}{green}--dry-run{reset}          Show actions without renaming files"
     )?;
     writeln!(
         w,
-        "  -c, --replacement CHAR Replacement character to use (default: _)"
+        "  {bold}{green}-c{reset}, {bold}{green}--replacement{reset} {cyan}CHAR{reset} Replacement character to use (default: {cyan}_{reset})"
     )?;
     writeln!(
         w,
-        "  -F, --full-sanitize    Replace all non-alphanumeric characters (except '_' and '-')"
+        "  {bold}{green}-F{reset}, {bold}{green}--full-sanitize{reset}    Replace all non-alphanumeric characters (except '_' and '-')"
     )?;
     writeln!(
         w,
@@ -51,7 +121,7 @@ pub fn print_usage(mut w: impl Write) -> io::Result<()> {
     )?;
     writeln!(
         w,
-        "  -h, --help             Show this help message and exit"
+        "  {bold}{green}-h{reset}, {bold}{green}--help{reset}             Show this help message and exit"
     )?;
     writeln!(w)?;
     writeln!(
@@ -60,33 +130,36 @@ pub fn print_usage(mut w: impl Write) -> io::Result<()> {
     )?;
     writeln!(
         w,
-        "Use '--' to stop option parsing when filenames begin with '-'."
+        "Use '{cyan}--{reset}' to stop option parsing when filenames begin with '-'."
     )?;
     writeln!(w)?;
-    writeln!(w, "Examples:")?;
+    writeln!(w, "{bold}{yellow}Examples:{reset}")?;
     writeln!(
         w,
-        "  # sanitize a single file in the current directory"
+        "  {dim}# sanitize a single file in the current directory{reset}"
     )?;
-    writeln!(w, "  sanitize_filenames \"My File.txt\"")?;
+    writeln!(w, "  {green}sanitize_filenames \"My File.txt\"{reset}")?;
     writeln!(w)?;
-    writeln!(w, "  # preview changes without renaming")?;
-    writeln!(w, "  sanitize_filenames --dry-run \"My File.txt\"")?;
-    writeln!(w)?;
+    writeln!(w, "  {dim}# preview changes without renaming{reset}")?;
     writeln!(
         w,
-        "  # sanitize recursively and use '-' as the separator"
-    )?;
-    writeln!(
-        w,
-        "  sanitize_filenames --recursive --replacement - ~/Downloads"
+        "  {green}sanitize_filenames --dry-run \"My File.txt\"{reset}"
     )?;
     writeln!(w)?;
     writeln!(
         w,
-        "  # sanitize a file whose name starts with a dash"
+        "  {dim}# sanitize recursively and use '-' as the separator{reset}"
     )?;
-    writeln!(w, "  sanitize_filenames -- --weird name.mp3")?;
+    writeln!(
+        w,
+        "  {green}sanitize_filenames --recursive --replacement - ~/Downloads{reset}"
+    )?;
+    writeln!(w)?;
+    writeln!(
+        w,
+        "  {dim}# sanitize a file whose name starts with a dash{reset}"
+    )?;
+    writeln!(w, "  {green}sanitize_filenames -- --weird name.mp3{reset}")?;
     Ok(())
 }
 
@@ -353,28 +426,47 @@ pub fn sanitized_filename(
 }
 
 pub fn rename_path(old: &Path, new: &Path, dry_run: bool) -> io::Result<PathBuf> {
+    let p = color::for_stdout();
     if old == new {
         println!(
-            "Old name and new name are the same for '{}'.  Not changing",
-            old.display()
+            "{}Old name and new name are the same for '{}'.  Not changing{}",
+            p.dim,
+            old.display(),
+            p.reset
         );
         return Ok(new.to_path_buf());
     } else if !old.exists() {
         println!(
-            "Old file name '{}' does not exist.  Skipping",
-            old.display()
+            "{}Old file name '{}' does not exist.  Skipping{}",
+            p.yellow,
+            old.display(),
+            p.reset
         );
         return Ok(old.to_path_buf());
     } else if new.exists() && old != new {
         println!(
-            "New file name '{}' already exists!  Skipping",
-            new.display()
+            "{}New file name '{}' already exists!  Skipping{}",
+            p.yellow,
+            new.display(),
+            p.reset
         );
         return Ok(old.to_path_buf());
     }
 
-    let action = if dry_run { "Would change" } else { "Changing" };
-    println!("{action} '{}' to '{}'", old.display(), new.display());
+    let (action, action_color) = if dry_run {
+        ("Would change", p.cyan)
+    } else {
+        ("Changing", p.green)
+    };
+    println!(
+        "{action_color}{action}{reset} '{old_path}' to '{bold}{new_path}{reset}'",
+        action_color = action_color,
+        action = action,
+        reset = p.reset,
+        old_path = old.display(),
+        bold = p.bold,
+        new_path = new.display(),
+    );
 
     if !dry_run {
         fs::rename(old, new)?;
@@ -390,9 +482,12 @@ pub fn sanitize_directory_tree(
     mode: SanitizeMode,
 ) -> io::Result<PathBuf> {
     if !path.exists() {
+        let p = color::for_stdout();
         println!(
-            "Old file name '{}' does not exist.  Skipping",
-            path.display()
+            "{}Old file name '{}' does not exist.  Skipping{}",
+            p.yellow,
+            path.display(),
+            p.reset
         );
         return Ok(path.to_path_buf());
     }
@@ -439,24 +534,30 @@ fn run_with_args(args: &[String]) -> i32 {
     let config = match parse_args(args) {
         Ok(cfg) => cfg,
         Err(CliError::Help) => {
-            let _ = print_usage(io::stdout());
+            let _ = print_usage(io::stdout(), color::for_stdout());
             return 0;
         }
         Err(CliError::Message(msg)) => {
-            eprintln!("{msg}");
-            let _ = print_usage(io::stderr());
+            let e = color::for_stderr();
+            eprintln!("{}{}error:{} {msg}", e.bold, e.red, e.reset);
+            let _ = print_usage(io::stderr(), e);
             return 1;
         }
     };
 
     if config.targets.is_empty() {
-        eprintln!("No files or directories specified");
-        let _ = print_usage(io::stderr());
+        let e = color::for_stderr();
+        eprintln!(
+            "{}{}error:{} No files or directories specified",
+            e.bold, e.red, e.reset
+        );
+        let _ = print_usage(io::stderr(), e);
         return 1;
     }
 
-    if let Err(e) = run(config) {
-        eprintln!("Error: {e}");
+    if let Err(err) = run(config) {
+        let e = color::for_stderr();
+        eprintln!("{}{}error:{} {err}", e.bold, e.red, e.reset);
         return 1;
     }
 
@@ -518,11 +619,27 @@ mod tests {
     #[test]
     fn print_usage_includes_sections() {
         let mut buf: Vec<u8> = Vec::new();
-        print_usage(&mut buf).expect("print_usage failed");
+        print_usage(&mut buf, Palette::plain()).expect("print_usage failed");
         let output = String::from_utf8(buf).expect("usage is valid UTF-8");
         assert!(output.contains("Usage: sanitize_filenames [options] [FILES...]"));
         assert!(output.contains("Options:"));
         assert!(output.contains("Examples:"));
+    }
+
+    #[test]
+    fn print_usage_emits_ansi_when_palette_is_ansi() {
+        let mut buf: Vec<u8> = Vec::new();
+        print_usage(&mut buf, Palette::ansi()).expect("print_usage failed");
+        let output = String::from_utf8(buf).expect("usage is valid UTF-8");
+        assert!(output.contains("\x1b["), "expected ANSI escape codes");
+    }
+
+    #[test]
+    fn print_usage_omits_ansi_when_palette_is_plain() {
+        let mut buf: Vec<u8> = Vec::new();
+        print_usage(&mut buf, Palette::plain()).expect("print_usage failed");
+        let output = String::from_utf8(buf).expect("usage is valid UTF-8");
+        assert!(!output.contains('\x1b'), "plain palette must not emit escapes");
     }
 
     #[test]

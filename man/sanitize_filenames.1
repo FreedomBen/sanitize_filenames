@@ -106,6 +106,13 @@ Sanitize a file whose name starts with a dash:
 sanitize_filenames -- --weird name.mp3
 .fi
 .RE
+.SH ENVIRONMENT
+.TP
+\fBNO_COLOR\fR
+If set to a non-empty value, disables ANSI color output in help text and log
+messages. Colored output is also suppressed automatically when standard
+output or standard error is not attached to a terminal (e.g. when piping or
+redirecting to a file).
 .SH EXIT STATUS
 .TP
 \fB0\fR
