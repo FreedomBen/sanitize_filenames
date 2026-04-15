@@ -3,4 +3,4 @@ TODO
 debug/
 /debug
 **/*.rs.bk
-
+.claude/

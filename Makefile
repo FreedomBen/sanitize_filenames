@@ -5,57 +5,63 @@ DEB_PACKAGE := sanitize-filenames
 DEB_ARCH := amd64
 
 .PHONY: all build clean deps initialize run test rpm deb arch-pkg alpine-apk \
-	release-binary release-rpm release-deb release-arch release-alpine install
+	release-binary release-rpm release-deb release-arch release-alpine install help
 
-all: build
+all: build ## Build the release binary (default)
 
-initialize:
+help: ## Show this help message
+	@echo "Usage: make [target]"
+	@echo
+	@echo "Targets:"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+initialize: ## Install Rust target, fetch deps, and build
 	rustup target add $(TARGET)
 	$(MAKE) deps
 	$(MAKE) build
 
-deps:
+deps: ## Fetch cargo dependencies for the target
 	cargo fetch --target $(TARGET)
 
-build:
+build: ## Build the release binary
 	cargo build --release --target $(TARGET)
 
-run: build
+run: build ## Build and run the release binary
 	./target/$(TARGET)/release/$(BINARY_NAME)
 
-rpm:
+rpm: ## Build an RPM package locally
 	./scripts/build-rpm.sh
 
-deb: build
+deb: build ## Build a Debian package locally
 	./scripts/build-deb.sh
 
-arch-pkg:
+arch-pkg: ## Build an Arch Linux package locally
 	./scripts/build-arch-pkg.sh
 
-alpine-apk:
+alpine-apk: ## Build an Alpine apk package locally
 	./scripts/build-alpine-apk.sh
 
-test:
+test: ## Run the test suite
 	cargo test
 
-release-binary:
+release-binary: ## Build a static release binary in a container
 	./scripts/build-static-binary-container.sh
 
-release-rpm:
+release-rpm: ## Build an RPM package in a container
 	./scripts/build-rpm-container.sh
 
-release-deb:
+release-deb: ## Build a Debian package in a container
 	./scripts/build-deb-container.sh
 
-release-arch:
+release-arch: ## Build an Arch Linux package in a container
 	./scripts/build-arch-pkg-container.sh
 
-release-alpine:
+release-alpine: ## Build an Alpine apk package in a container
 	./scripts/build-alpine-apk-container.sh
 
-install: build
+install: build ## Install the binary to $(HOME)/bin
 	mkdir -p "$(HOME)/bin"
 	install -m 0755 "target/$(TARGET)/release/$(BINARY_NAME)" "$(HOME)/bin/"
 
-clean:
+clean: ## Remove cargo build artifacts
 	cargo clean
