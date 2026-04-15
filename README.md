@@ -2,6 +2,8 @@
 
 Rust implementation of a filename sanitizer that builds to a statically linked binary and provides a CLI for renaming files and directories.
 
+Prebuilt binaries and packages are available on the [Releases page](https://github.com/FreedomBen/sanitize_filenames/releases).
+
 ## Prerequisites
 
 - Rust toolchain (via `rustup`): https://rustup.rs
